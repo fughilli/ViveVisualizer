@@ -10,32 +10,42 @@ win = pyglet.window.Window(width=1280,height=800)
 
 t = 0
 
-axes_offset_transform = GLDrawTransform(pos=Vector3(-2,-1,-5))
+## Set up a main camera transform to offset the scene into the screen
 camera_offset_transform = GLDrawTransform(pos=Vector3.k * -10)
+
+## Set up a rotation transform to rotate the scene
 scenerot_transform = camera_offset_transform.addChild()
+
+## Import a cube model and add it to the scene
+cube = OBJObject()
+cube.imp('box.obj')
+scenerot_transform.addChild(cube)
+
+## Set up a debug vector manager for the main scene to draw debug information
+scene_vectormanager = DebugVectorManager()
+scenerot_transform.addChild(scene_vectormanager)
+
+## Set up axes display in the lower-left corner
+axes_offset_transform = GLDrawTransform(pos=Vector3(-2,-1,-5))
 axesrot_transform = axes_offset_transform.addChild()
 axesrot_transform.shadow = scenerot_transform
 
-cube = OBJObject()
-cube.imp('box.obj')
+axes_vectormanager = DebugVectorManager()
+axesrot_transform.addChild(axes_vectormanager)
 
-dvec1 = DebugVector(vec=Vector3.one * 2,pos=Vector3.i * 2)
-dvec2 = DebugVector(vec=Vector3.i * 2,pos=Vector3.i * 2)
-dvec3 = DebugVector(vec=Vector3.j * 2,pos=Vector3.i * 4)
-dvec4 = DebugVector(vec=Vector3.k * 2,pos=Vector3.i * 4 + Vector3.j * 2)
+axes_vectormanager.addVector(Vector3.zero, Vector3.i * 0.5, (1,0,0,1))
+axes_vectormanager.addVector(Vector3.zero, Vector3.j * 0.5, (0,1,0,1))
+axes_vectormanager.addVector(Vector3.zero, Vector3.k * 0.5, (0,0,1,1))
 
-[scenerot_transform.addChild(x) for x in [cube, dvec1, dvec2, dvec3, dvec4]]
+pos_delta = Vector3.zero
 
-xvec = DebugVector(vec=Vector3.i * 0.5, color=(1,0,0,1))
-yvec = DebugVector(vec=Vector3.j * 0.5, color=(0,1,0,1))
-zvec = DebugVector(vec=Vector3.k * 0.5, color=(0,0,1,1))
-
-[axesrot_transform.addChild(x) for x in [xvec, yvec, zvec]]
-
-print scenerot_transform.children
-
+## This function updates the simulation state
 def step_simulation():
-    
+    global pos_delta
+    scene_vectormanager.clear()
+    cube.pos += pos_delta
+    pos_delta = Vector3.random().unit() * 5
+    scene_vectormanager.addVector(cube.pos, pos_delta, (1, 1, 0, 1))
 
 @win.event
 def on_show():
