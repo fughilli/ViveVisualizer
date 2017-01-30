@@ -70,6 +70,16 @@ class OBJObject(GLDrawTransform):
 
         pass
 
+class DebugVectorManager(GLDrawTransform):
+    def __init__(self, pos=vector.Vector3.zero, rot=vector.Quaternion.l, parent = None):
+        super(DebugVectorManager, self).__init__(pos, rot, parent)
+
+    def clear(self):
+        self.children = []
+
+    def addVector(self, pos, vec, color=(1, 0, 0, 1)):
+        self.addChild(DebugVector(pos=pos, vec=vec, color=color))
+
 class DebugVector(GLDrawTransform):
     def __init__(self, vec, color=(0, 1, 0, 1), pos=vector.Vector3.zero, rot=vector.Quaternion.l, parent = None):
         super(DebugVector, self).__init__(pos, rot, parent)
