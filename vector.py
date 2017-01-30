@@ -1,4 +1,5 @@
 import math
+import random
 
 class Vector3Meta(type):
     def __getattr__(self, name):
@@ -30,6 +31,10 @@ class Vector3(object):
         vec_q = Quaternion(self.x, self.y, self.z, 0)
         vec_q = (quat * vec_q) * quat.conjugate()
         return Vector3(vec_q.x, vec_q.y, vec_q.z)
+
+    @staticmethod
+    def random():
+        return Vector3(random.random() - 0.5, random.random() - 0.5, random.random() - 0.5) * 2
 
     def __div__(self, other):
         if not (type(other) == float or type(other) == int):
