@@ -40,6 +40,8 @@ class OBJImporter(object):
                 else:
                     ret[0].append([float(x) for x in parts])
             if(command == 'f'):
-                ret[1].extend(OBJImporter.triangulate([parseindex(x) for x in parts], flat=flat))
+                ret[1].extend(OBJImporter.triangulate([parseindex(x) for x in
+                                                       parts],
+                                                      flat=flat))
 
         return ret

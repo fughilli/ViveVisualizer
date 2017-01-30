@@ -34,7 +34,8 @@ class Vector3(object):
 
     @staticmethod
     def random():
-        return Vector3(random.random() - 0.5, random.random() - 0.5, random.random() - 0.5) * 2
+        return Vector3(random.random() - 0.5, random.random() - 0.5,
+                       random.random() - 0.5) * 2
 
     def __div__(self, other):
         if not (type(other) == float or type(other) == int):
