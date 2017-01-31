@@ -1,7 +1,7 @@
 from math import acos,asin,sin,cos,sqrt,pi
 from objimporter import OBJImporter
 from pyglet.gl import *
-from vector import Vector3, Quaternion
+from vector import Vector3, Quaternion, Plane
 from vis3d import *
 import pyglet
 from pyglet.window import key
@@ -17,9 +17,9 @@ camera_offset_transform = GLDrawTransform(pos=Vector3.k * -10)
 scenerot_transform = camera_offset_transform.addChild()
 
 ## Import a cube model and add it to the scene
-cube = OBJObject()
-cube.imp('box.obj')
-scenerot_transform.addChild(cube)
+#cube = OBJObject()
+#cube.imp('box.obj')
+#scenerot_transform.addChild(cube)
 
 ## Set up a debug vector manager for the main scene to draw debug information
 scene_vectormanager = DebugVectorManager()
@@ -43,9 +43,23 @@ pos_delta = Vector3.zero
 def step_simulation():
     global pos_delta
     scene_vectormanager.clear()
-    cube.pos += pos_delta
-    pos_delta = Vector3.random().unit() * 5
-    scene_vectormanager.addVector(cube.pos, pos_delta, (1, 1, 0, 1))
+    #cube.pos += pos_delta
+    #pos_delta = Vector3.random().unit() * 5
+    #scene_vectormanager.addVector(cube.pos, pos_delta, (1, 1, 0, 1))
+
+GRID_SIZE = 3
+
+def loop_simulation(dt):
+    scene_vectormanager.clear()
+    r = range(1-GRID_SIZE, GRID_SIZE)
+    for i in r:
+        for j in r:
+            for k in r:
+                pos = Vector3(i,j,k)
+                direc = (pos.unit() * 0.5 * sin(t * 2 + pos.magnitude())) if (pos.magnitude() != 0) else Vector3.zero
+                direc = direc.rotate(Quaternion.fromAxisAngle(Vector3.j, pi/4))
+                scene_vectormanager.addVector(pos, direc, (1,1,0,1)) #((i + GRID_SIZE - 1)/float(GRID_SIZE * 2),(j + GRID_SIZE - 1)/float(GRID_SIZE * 2),(k + GRID_SIZE - 1)/float(GRID_SIZE * 2),1))
+                scene_vectormanager.addPlane(Plane(pos, direc))
 
 @win.event
 def on_show():
@@ -72,13 +86,19 @@ def on_draw():
 
 @win.event
 def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
-    global world_transform
-    scenerot_transform.rot = (
-            Quaternion.fromAxisAngle(Vector3.j,
-                                     float(dx) / win.width * 2 * pi) *
-            Quaternion.fromAxisAngle(Vector3.i,
-                                     -float(dy) / win.height * 2 * pi) *
-            scenerot_transform.rot).unit()
+    if buttons & pyglet.window.mouse.LEFT and not buttons & pyglet.window.mouse.RIGHT:
+        scenerot_transform.rot = (
+                Quaternion.fromAxisAngle(Vector3.j,
+                                         float(dx) / win.width * 2 * pi) *
+                Quaternion.fromAxisAngle(Vector3.i,
+                                         -float(dy) / win.height * 2 * pi) *
+                scenerot_transform.rot).unit()
+    elif buttons & pyglet.window.mouse.RIGHT and not buttons & pyglet.window.mouse.LEFT:
+        camera_offset_transform.pos += Vector3(dx,dy,0) * 0.05
+
+@win.event
+def on_mouse_scroll(x, y, scroll_x, scroll_y):
+    camera_offset_transform.pos += Vector3(0,0,scroll_y) * 0.5
 
 @win.event
 def on_key_press(symbol, modifiers):
@@ -88,6 +108,8 @@ def on_key_press(symbol, modifiers):
 def process_loop(dt):
     global t
     t += dt
+
+    loop_simulation(dt)
     pass
 
 pyglet.clock.schedule(process_loop)
