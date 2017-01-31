@@ -72,6 +72,13 @@ class Vector3(object):
     def dot(self, other):
         return self.x * other.x + self.y * other.y + self.z * other.z
 
+    def project(self, other):
+        udir = other.unit()
+        return self.dot(udir) * udir
+
+    def orthogonal(self, other):
+        return self - self.project(other)
+
     def unit(self):
         return self / self.magnitude()
 
@@ -136,10 +143,13 @@ class Quaternion(object):
 
     @staticmethod
     def rotationBetween(va, vb):
+        if(va.magnitude() == 0 or vb.magnitude() == 0):
+            return Quaternion.l
+
         va = va.unit()
         vb = vb.unit()
 
-        if (va == -vb):
+        if ((va + vb).magnitude() == 0):
             return Quaternion(*va.cross(vb), w=0)
 
         vh = (va + vb).unit()
@@ -196,3 +206,24 @@ class Quaternion(object):
 
     def __repr__(self):
         return "Quaternion(<%f,%f,%f,%f>)" % (self.x, self.y, self.z, self.w)
+
+class Ray(object):
+    def __init__(self, origin, vec):
+        self.origin = origin
+        self.vec = vec
+
+    def nearest(self, point):
+        relative = point - self.origin
+        if relative.dot(self.vec) < 0:
+            return None
+
+        return self.origin + relative.project(self.vec)
+
+class Plane(object):
+    def __init__(self, origin, normal):
+        self.origin = origin
+        self.normal = normal
+
+    def nearest(self, point):
+        relative = point - self.origin
+        return self.origin + relative.orthogonal(self.vec)
