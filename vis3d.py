@@ -81,6 +81,12 @@ class DebugVectorManager(GLDrawTransform):
     def addVector(self, pos, vec, color=(1, 0, 0, 1)):
         self.addChild(DebugVector(pos=pos, vec=vec, color=color))
 
+    def addRay(self, ray, color=(1, 0, 0, 1)):
+        self.addVector(ray.origin, ray.vec, color)
+
+    def addPlane(self, plane, color=(1, 0, 0, 0.5)):
+        self.addChild(DebugPlane(pos=plane.origin, normal=plane.normal, color=color))
+
 class DebugVector(GLDrawTransform):
     def __init__(self, vec, color=(0, 1, 0, 1), pos=vector.Vector3.zero,
                  rot=vector.Quaternion.l, parent = None):
@@ -91,21 +97,61 @@ class DebugVector(GLDrawTransform):
     def draw(self):
 
         pyglet.gl.glPushMatrix()
-        temprot = vector.Quaternion.rotationBetween(vector.Vector3.i, self.vec)
-        axis,angle = temprot.toAxisAngle()
         pyglet.gl.glTranslatef(*self.pos)
-        pyglet.gl.glRotatef(angle / math.pi * 180, *axis)
+        pyglet.gl.glColor4f(*self.color)
+
+        x,y,z = self.vec
+
+        pyglet.graphics.draw_indexed(8, pyglet.gl.GL_LINES,
+                                     [0,1,2,3,4,5,6,7],
+                                     ('v3f', [0,0,0,
+                                              x,y,z,
+                                              x+0.04,y,z,
+                                              x-0.04,y,z,
+                                              x,y+0.04,z,
+                                              x,y-0.04,z,
+                                              x,y,z+0.04,
+                                              x,y,z-0.04]))
+
+        pyglet.gl.glPopMatrix()
+
+class DebugPlane(GLDrawTransform):
+    def __init__(self, normal, color=(0, 1, 0, 0.5), pos=vector.Vector3.zero,
+                 rot=vector.Quaternion.l, parent=None):
+        super(DebugPlane, self).__init__(pos, rot, parent)
+        self.normal = normal
+        self.color = color
+
+    def draw(self):
+
+        pyglet.gl.glPushMatrix()
+
+        pyglet.gl.glTranslatef(*self.pos)
 
         pyglet.gl.glColor4f(*self.color)
 
-        mag = self.vec.magnitude()
+        major = 0
 
-        pyglet.graphics.draw_indexed(5, pyglet.gl.GL_LINES,
-                                     [0,1,1,2,1,3,1,4,2,3,3,4,4,2],
-                                     ('v3f', [0,0,0,
-                                              mag,0,0,
-                                              mag - 0.1,0.1,-0.05,
-                                              mag - 0.1,-0.1,-0.05,
-                                              mag - 0.1,0,0.1]))
+        if (self.normal.z != 0 or self.normal.y != 0):
+            major = vector.Vector3(0, -self.normal.z, self.normal.y)
+        else:
+            major = vector.Vector3(-self.normal.z, 0, self.normal.x)
+
+        minor = self.normal.cross(major)
+
+        if(minor.magnitude() != 0):
+            minor = minor.unit() * 0.2
+        if(major.magnitude() != 0):
+            major = major.unit() * 0.2
+
+        Mx,My,Mz = major
+        mx,my,mz = minor
+
+        pyglet.graphics.draw_indexed(4, pyglet.gl.GL_LINES,
+                                     [0,1,1,2,2,3,3,0],
+                                     ('v3f', [Mx+mx,My+my,Mz+mz,
+                                              Mx-mx,My-my,Mz-mz,
+                                              -Mx-mx,-My-my,-Mz-mz,
+                                              -Mx+mx,-My+my,-Mz+mz]))
 
         pyglet.gl.glPopMatrix()
