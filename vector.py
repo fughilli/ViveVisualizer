@@ -94,6 +94,13 @@ class Vector3(object):
     def average(vectors):
         return reduce(lambda a,b : a+b, vectors) / len(vectors)
 
+    @staticmethod
+    def enclosingAABB(vectors):
+        return (
+                reduce(lambda a,b : Vector3(min((a.x,b.x)), min((a.y,b.y)), min((a.z,b.z))), vectors),
+                reduce(lambda a,b : Vector3(max((a.x,b.x)), max((a.y,b.y)), max((a.z,b.z))), vectors)
+               )
+
     def __getitem__(self, index):
         return [self.x,self.y,self.z][index]
 
