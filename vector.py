@@ -53,6 +53,11 @@ class Vector3(object):
             raise Exception("Vector3 + %s not supported" % type(other))
         return Vector3(self.x + other.x, self.y + other.y, self.z + other.z)
 
+    def __sub__(self, other):
+        if not type(other) == Vector3:
+            raise Exception("Vector3 - %s not supported" % type(other))
+        return Vector3(self.x - other.x, self.y - other.y, self.z - other.z)
+
     def __neg__(self):
         return Vector3(-self.x, -self.y, -self.z)
 
@@ -74,13 +79,20 @@ class Vector3(object):
 
     def project(self, other):
         udir = other.unit()
-        return self.dot(udir) * udir
+        return udir * self.dot(udir)
 
     def orthogonal(self, other):
         return self - self.project(other)
 
     def unit(self):
         return self / self.magnitude()
+
+    def lerp(self, other, t):
+        return (self * (1 - t)) + (other * t)
+
+    @staticmethod
+    def average(vectors):
+        return reduce(lambda a,b : a+b, vectors) / len(vectors)
 
     def __getitem__(self, index):
         return [self.x,self.y,self.z][index]
@@ -155,6 +167,10 @@ class Quaternion(object):
         vh = (va + vb).unit()
         return Quaternion(*va.cross(vh), w=va.dot(vh))
 
+    @staticmethod
+    def random():
+        return Quaternion(*[random.random() - 0.5 for i in range(4)]).unit()
+
     def norm(self):
         return math.sqrt(self.x ** 2 + self.y ** 2 + self.z ** 2 + self.w ** 2)
 
@@ -201,6 +217,40 @@ class Quaternion(object):
     def __neg__(self):
         return Quaternion(-self.x, -self.y, -self.z, -self.w)
 
+    @staticmethod
+    def average(quats):
+        return (reduce(lambda a,b : a+b, quats) / len(quats)).unit()
+
+    def dot(self, other):
+        return math.sqrt(self.x * other.x + self.y * other.y + self.z * other.z + self.w * other.w)
+
+    def slerp(self, endpt, t):
+        qret = self * 1.0
+        cosHalfTheta = self.dot(endpt)
+
+        if(abs(cosHalfTheta) >= 1.0):
+            return qret
+
+        halfTheta = math.acos(cosHalfTheta)
+        sinHalfTheta = math.sqrt(1.0 - cosHalfTheta ** 2)
+
+        if(abs(sinHalfTheta) < 0.001):
+            qret.x = (self.x*0.5 + endpt.x*0.5)
+            qret.y = (self.y*0.5 + endpt.y*0.5)
+            qret.z = (self.z*0.5 + endpt.z*0.5)
+            qret.w = (self.w*0.5 + endpt.w*0.5)
+            return qret
+
+        ratA = math.sin((1.0 - t) * halfTheta) / sinHalfTheta
+        ratB = math.sin(t * halfTheta) / sinHalfTheta
+
+        qret.x = (self.x*ratA + endpt.x*ratB)
+        qret.y = (self.y*ratA + endpt.y*ratB)
+        qret.z = (self.z*ratA + endpt.z*ratB)
+        qret.w = (self.w*ratA + endpt.w*ratB)
+
+        return qret
+
     def __getitem__(self, index):
         return [self.x,self.y,self.z,self.w][index]
 
@@ -219,6 +269,13 @@ class Ray(object):
 
         return self.origin + relative.project(self.vec)
 
+    @staticmethod
+    def average(rays):
+        average_pos = Vector3.average([ray.origin for ray in rays])
+        average_vec = Vector3.average([ray.vec for ray in rays])
+
+        return Ray(average_pos, average_vec)
+
 class Plane(object):
     def __init__(self, origin, normal):
         self.origin = origin
@@ -226,4 +283,4 @@ class Plane(object):
 
     def nearest(self, point):
         relative = point - self.origin
-        return self.origin + relative.orthogonal(self.vec)
+        return self.origin + relative.orthogonal(self.normal)
