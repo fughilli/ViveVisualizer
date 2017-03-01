@@ -13,13 +13,13 @@ class Transform(object):
         self.pos = pos
         self.rot = rot
 
-    def addChild(self, child=None):
+    def addChild(self, child=None, group=None):
         if child:
             child.parent = self
-            self.children.append(child)
+            self.children.append((group, child))
         else:
             ret = type(self)()
-            self.children.append(ret)
+            self.children.append((group, ret))
             return ret
 
 class GLDrawTransform(Transform):
@@ -36,7 +36,7 @@ class GLDrawTransform(Transform):
         pyglet.gl.glTranslatef(*(self.shadow.pos if self.shadow else self.pos))
         pyglet.gl.glRotatef(angle / math.pi * 180, *axis)
 
-        for child in self.children:
+        for group,child in self.children:
             child.draw()
 
         pyglet.gl.glPopMatrix()
@@ -60,11 +60,30 @@ class OBJObject(GLDrawTransform):
         pyglet.gl.glTranslatef(*self.pos)
         pyglet.gl.glRotatef(angle / math.pi * 180, *axis)
 
-        pyglet.gl.glColor4f(1.0,0,0,1.0)
+        pyglet.gl.glColor4f(0,0,0,1.0)
+
+        pyglet.gl.glPolygonMode(pyglet.gl.GL_FRONT, pyglet.gl.GL_LINE)
+        pyglet.gl.glPolygonMode(pyglet.gl.GL_BACK, pyglet.gl.GL_LINE)
+
 
         pyglet.graphics.draw_indexed(len(self.vertices)/3,
                                      pyglet.gl.GL_TRIANGLES, self.indices,
                                      ('v3f', self.vertices))
+
+        pyglet.gl.glColor4f(0.4,0.4,0.4,1.0)
+
+        pyglet.gl.glPolygonMode(pyglet.gl.GL_FRONT, pyglet.gl.GL_FILL)
+        pyglet.gl.glPolygonMode(pyglet.gl.GL_BACK, pyglet.gl.GL_FILL)
+
+        pyglet.graphics.draw_indexed(len(self.vertices)/3,
+                                     pyglet.gl.GL_TRIANGLES, self.indices,
+                                     ('v3f', self.vertices))
+
+        #pyglet.gl.glColor4f(1.0,0,0,1.0)
+
+        #pyglet.graphics.draw_indexed(len(self.vertices)/3,
+        #                             pyglet.gl.GL_TRIANGLES, self.indices,
+        #                             ('v3f', self.vertices))
 
         pyglet.gl.glPopMatrix()
 
@@ -75,17 +94,20 @@ class DebugVectorManager(GLDrawTransform):
                  parent = None):
         super(DebugVectorManager, self).__init__(pos, rot, parent)
 
-    def clear(self):
-        self.children = []
+    def clear(self, group=None):
+        if group:
+            self.children = filter(lambda c : c[0] != group, self.children)
+        else:
+            self.children = []
 
-    def addVector(self, pos, vec, color=(1, 0, 0, 1)):
-        self.addChild(DebugVector(pos=pos, vec=vec, color=color))
+    def addVector(self, pos, vec, color=(1, 0, 0, 1), group=None):
+        self.addChild(DebugVector(pos=pos, vec=vec, color=color), group)
 
-    def addRay(self, ray, color=(1, 0, 0, 1)):
-        self.addVector(ray.origin, ray.vec, color)
+    def addRay(self, ray, color=(1, 0, 0, 1), group=None):
+        self.addVector(ray.origin, ray.vec, color, group)
 
-    def addPlane(self, plane, color=(1, 0, 0, 0.5)):
-        self.addChild(DebugPlane(pos=plane.origin, normal=plane.normal, color=color))
+    def addPlane(self, plane, color=(1, 0, 0, 0.5), group=None):
+        self.addChild(DebugPlane(pos=plane.origin, normal=plane.normal, color=color), group)
 
 class DebugVector(GLDrawTransform):
     def __init__(self, vec, color=(0, 1, 0, 1), pos=vector.Vector3.zero,
@@ -140,9 +162,9 @@ class DebugPlane(GLDrawTransform):
         minor = self.normal.cross(major)
 
         if(minor.magnitude() != 0):
-            minor = minor.unit() * 0.2
+            minor = minor.unit() * 2.0
         if(major.magnitude() != 0):
-            major = major.unit() * 0.2
+            major = major.unit() * 2.0
 
         Mx,My,Mz = major
         mx,my,mz = minor
