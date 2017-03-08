@@ -90,12 +90,20 @@ class Vector3(object):
     def lerp(self, other, t):
         return (self * (1 - t)) + (other * t)
 
+    def rotateAxisAngle(self, axis, angle):
+        return self.rotate(Quaternion.fromAxisAngle(axis, angle))
+
     @staticmethod
     def average(vectors):
-        return reduce(lambda a,b : a+b, vectors) / len(vectors)
+        if vectors:
+            return reduce(lambda a,b : a+b, vectors, Vector3.zero) / len(vectors)
+        else:
+            return Vector3.zero
 
     @staticmethod
     def enclosingAABB(vectors):
+        if len(vectors) == 0:
+            return (Vector3.zero, Vector3.zero)
         return (
                 reduce(lambda a,b : Vector3(min((a.x,b.x)), min((a.y,b.y)), min((a.z,b.z))), vectors),
                 reduce(lambda a,b : Vector3(max((a.x,b.x)), max((a.y,b.y)), max((a.z,b.z))), vectors)
@@ -226,7 +234,10 @@ class Quaternion(object):
 
     @staticmethod
     def average(quats):
-        return (reduce(lambda a,b : a+b, quats) / len(quats)).unit()
+        if quats:
+            return (reduce(lambda a,b : a+b, quats) / len(quats)).unit()
+        else:
+            return Quaternion.l
 
     def dot(self, other):
         return math.sqrt(self.x * other.x + self.y * other.y + self.z * other.z + self.w * other.w)
@@ -282,6 +293,12 @@ class Ray(object):
         average_vec = Vector3.average([ray.vec for ray in rays])
 
         return Ray(average_pos, average_vec)
+
+    @staticmethod
+    def fromPitchYaw(pitch,yaw):
+        target = Vector3.i.rotateAxisAngle(Vector3.j,pitch).rotateAxisAngle(Vector3.k,yaw) * 10
+
+        return Ray(Vector3.zero, target)
 
 class Plane(object):
     def __init__(self, origin, normal):
