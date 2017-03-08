@@ -9,6 +9,9 @@ from lighthouse import Lighthouse, Device
 import random
 import tween
 import json
+import serial
+
+s = serial.Serial("/dev/ttyACM0", 115200, timeout=0)
 
 win = pyglet.window.Window(vsync=True, width=1280,height=800)
 
@@ -36,15 +39,10 @@ axes_vectormanager.addVector(Vector3.zero, Vector3.i * 0.5, (1,0,0,1))
 axes_vectormanager.addVector(Vector3.zero, Vector3.j * 0.5, (0,1,0,1))
 axes_vectormanager.addVector(Vector3.zero, Vector3.k * 0.5, (0,0,1,1))
 
-sensor_positions = (#[Vector3.random().unit() for x in range(10)]
-        #[Vector3(1, 0, 0).rotate(Quaternion.fromAxisAngle(Vector3(0,0,1), 2*pi/3)),
-        # Vector3(1, 0, 0).rotate(Quaternion.fromAxisAngle(Vector3(0,0,1), 4*pi/3)),
-        # Vector3(1, 0, 0),
-        # Vector3(sqrt(2)/2, 0, sqrt(2)/2).rotate(Quaternion.fromAxisAngle(Vector3(0,0,1), 2*pi/3)),
-        # Vector3(sqrt(2)/2, 0, sqrt(2)/2).rotate(Quaternion.fromAxisAngle(Vector3(0,0,1), 4*pi/3)),
-        # Vector3(sqrt(2)/2, 0, sqrt(2)/2),
-        # Vector3(0, 0, 1)])
-        [Vector3(4.8,0,0.3), Vector3(0,0,4.0), Vector3(-2.1,4.1,0.3), Vector3(-2.1,-4.1,0.3)])
+sensor_positions = ([Vector3(4.8,0,0.3),
+                     Vector3(0,0,4.0),
+                     Vector3(-2.1,4.1,0.3),
+                     Vector3(-2.1,-4.1,0.3)])
 
 lighthouse = Lighthouse()
 target_device = Device(sensorpos = sensor_positions, color = (0, 1, 0.5, 1))
@@ -138,6 +136,8 @@ def update_slave_sensor():
         slave_state = SS_COMPUTE_POS_DELTA
 
     elif slave_state == SS_COMPUTE_POS_DELTA:
+
+        slave_rays = view_rays
 
         translation_rays = []
         face_sums = []
@@ -306,8 +306,46 @@ def on_show():
     glLoadIdentity()
     gluPerspective(45.0, float(win.width)/win.height, 0.1, 360)
 
+angle_averagers = [Averager(30) for _ in range(8)]
+
+def calc_view_rays(line):
+    try:
+        raw = json.loads(line.strip())
+    except Exception as e:
+        print line
+        return []
+
+    angles = [(float(x) - 13021)/13021.0 * math.pi / 3 for x in raw]
+
+    if angle_order:
+        return [vector.Ray.fromPitchYaw(p,y) for p,y in zip(angles[4:],angles[:4])]
+    else:
+        return [vector.Ray.fromPitchYaw(p,y) for p,y in zip(angles[:4],angles[4:])]
+
+readbuf = ""
+
 @win.event
 def on_draw():
+    global view_rays
+    global readbuf
+
+    readval = s.read(100)
+    line = ""
+    while(readval):
+        readbuf += readval
+        if('\n' in readbuf):
+            last_newline_pos = len(readbuf) - readbuf[::-1].find('\n') - 1
+            rem = readbuf[last_newline_pos + 1:]
+            line = readbuf
+            if('\n' in line):
+                line = line[:-line[::-1].find('\n')-1]
+            readbuf = rem
+            break
+
+        readval = s.read(100)
+    if(line):
+        view_rays = calc_view_rays(line)
+
     win.clear()
 
     glMatrixMode(GL_MODELVIEW)
