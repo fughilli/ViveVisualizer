@@ -70,9 +70,6 @@ slave_rays = []
 slave_pos_delta = Vector3.zero
 slave_rot_delta = Quaternion.l
 
-slave_device_pos_tween = tween.LinearTween(Vector3.zero, Vector3.zero, speed=10.0)
-slave_device_rot_tween = tween.LinearTween(Quaternion.l, Quaternion.l, speed=10.0)
-
 target_index = 0
 
 run_auto = False
@@ -114,14 +111,9 @@ def update_slave_sensor():
     global slave_rays
     global slave_pos_delta
     global slave_rot_delta
-    global slave_device_pos_tween
-    global slave_device_rot_tween
     global target_index
     global slave_error
     global face_sums
-
-    slave_device.pos = slave_device_pos_tween.finish()
-    slave_device.rot = slave_device_rot_tween.finish()
 
     _slave_rays = lighthouse.getRays(slave_device)
     scene_vectormanager.clear(4)
@@ -180,8 +172,7 @@ def update_slave_sensor():
     elif slave_state == SS_APPLY_POS_DELTA:
 
         scene_vectormanager.clear(2)
-        slave_device_pos_tween.__init__(slave_device.pos, slave_device.pos + slave_pos_delta, 10.0)
-        #slave_device.pos += slave_pos_delta
+        slave_device.pos += slave_pos_delta
         slave_state = SS_COMPUTE_ROT_DELTA
 
     elif slave_state == SS_COMPUTE_ROT_DELTA:
@@ -213,8 +204,7 @@ def update_slave_sensor():
     elif slave_state == SS_APPLY_ROT_DELTA:
 
         scene_vectormanager.clear(3)
-        slave_device_rot_tween.__init__(slave_device.rot, slave_rot_delta * slave_device.rot, 10.0)
-        #slave_device.rot = slave_rot_delta * slave_device.rot
+        slave_device.rot = slave_rot_delta * slave_device.rot
         slave_state = SS_COMPUTE_POS_DELTA
 
 def move_target_sensor():
@@ -234,17 +224,8 @@ def rotate_target_sensor():
 
 def sync_states():
     global slave_state
-    #slave_device.pos = target_device.pos
-    #slave_device.rot = target_device.rot
-
-    slave_device_pos_tween.snap(target_device.pos)
-    slave_device_rot_tween.snap(target_device.rot)
-
-def move_out():
-    slave_device_pos_tween.snap(slave_device.pos + (slave_device.pos - lighthouse.pos).unit() * 0.5)
-
-def move_in():
-    slave_device_pos_tween.snap(slave_device.pos - (slave_device.pos - lighthouse.pos).unit() * 0.5)
+    slave_device.pos = target_device.pos
+    slave_device.rot = target_device.rot
 
 ## This function updates the simulation state
 def step_simulation():
@@ -262,12 +243,8 @@ def loop_simulation(dt):
     global slave_error
 
     if(run_auto):
-        if(slave_device_pos_tween.done() and slave_device_rot_tween.done()):
-            scene_vectormanager.clear()
-            update_slave_sensor()
-
-    slave_device.pos = slave_device_pos_tween.step(dt * 10)
-    slave_device.rot = slave_device_rot_tween.step(dt * 10)
+        scene_vectormanager.clear()
+        update_slave_sensor()
 
     scene_vectormanager.clear(15)
     for r in view_rays:
@@ -305,8 +282,6 @@ def on_show():
     glMatrixMode(GL_PROJECTION)
     glLoadIdentity()
     gluPerspective(45.0, float(win.width)/win.height, 0.1, 360)
-
-angle_averagers = [Averager(30) for _ in range(8)]
 
 def calc_view_rays(line):
     try:
@@ -383,10 +358,6 @@ def on_key_press(symbol, modifiers):
         update_slave_sensor()
     if(symbol == key.C):
         sync_states()
-    if(symbol == key.O):
-        move_out()
-    if(symbol == key.I):
-        move_in()
 
     if(symbol == key.A):
         toggle_auto()
@@ -401,7 +372,8 @@ def process_loop(dt):
     global t
     t += dt
 
-    loop_simulation(dt)
+    for _ in range(10):
+        loop_simulation(dt)
     pass
 
 pyglet.clock.schedule(process_loop)
