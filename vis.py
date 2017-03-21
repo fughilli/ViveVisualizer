@@ -123,6 +123,7 @@ def on_draw():
             if('\n' in line):
                 line = line[:-line[::-1].find('\n')-1]
             readbuf = rem
+        elif line:
             break
 
         readval = s.read(100)
