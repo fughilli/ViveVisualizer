@@ -308,3 +308,78 @@ class Plane(object):
     def nearest(self, point):
         relative = point - self.origin
         return self.origin + relative.orthogonal(self.normal)
+
+def __helper_dot(a, b):
+    return sum(lambda x,y : x*y, zip(a,b))
+
+class Matrix4x4Meta(type):
+    def __getattr__(self, name):
+        if (name == 'zero'):
+            return Matrix4x4(*([0.0] * 16))
+        if (name == 'one'):
+            return Matrix4x4(*([1.0] * 16))
+        if (name == 'identity'):
+            return Matrix4x4(1.0, 0.0, 0.0, 0.0,
+                             0.0, 1.0, 0.0, 0.0,
+                             0.0, 0.0, 1.0, 0.0,
+                             0.0, 0.0, 0.0, 1.0)
+        raise AttributeError(name)
+
+    def __setattr__(self, name, value):
+        if (name in ['zero', 'one', 'i', 'j', 'k', 'l']):
+            print "Something attempted to set %s to %s" % (name, value)
+
+class Matrix4x4(object):
+    __metaclass__ = Matrix4x4Meta
+
+    def __init__(self, *components):
+        self.components = [float(x) for x in components]
+
+    def row(self, idx):
+        return self.components[idx * 4 : (idx + 1) * 4]
+
+    def col(self, idx):
+        return self.components[idx::4]
+
+    def __mul__(self, other):
+        if type(other) == Vector3:
+            ext_v = [other.x, other.y, other.z, 1.0]
+            return Vector3([__helper_dot(self.row(i), ext_v) for i in range(3)])
+
+    def component(self, r, c):
+        return self.components[r*4 + c]
+
+    def rotation(self):
+        tr = self.component(0,0) + self.component(1,1) + self.component(2,2)
+        q = Quaternion.zero
+
+        if (tr > 0):
+            S = math.sqrt(tr+1.0) * 2
+            q.w = 0.25 * S
+            q.x = (self.component(2,1) - self.component(1,2)) / S
+            q.y = (self.component(0,2) - self.component(2,0)) / S
+            q.z = (self.component(1,0) - self.component(0,1)) / S
+        elif ((self.component(0,0) > self.component(1,1)) and
+              (self.component(0,0) > self.component(2,2))):
+            S = math.sqrt(1.0 + self.component(0,0) - self.component(1,1) -
+                          self.component(2,2)) * 2
+            q.w = (self.component(2,1) - self.component(1,2)) / S
+            q.x = 0.25 * S
+            q.y = (self.component(0,1) + self.component(1,0)) / S
+            q.z = (self.component(0,2) + self.component(2,0)) / S
+        elif (self.component(1,1) > self.component(2,2)):
+            S = math.sqrt(1.0 + self.component(1,1) - self.component(0,0) -
+                          self.component(2,2)) * 2
+            q.w = (self.component(0,2) - self.component(2,0)) / S
+            q.x = (self.component(0,1) + self.component(1,0)) / S
+            q.y = 0.25 * S
+            q.z = (self.component(1,2) + self.component(2,1)) / S
+        else:
+            S = math.sqrt(1.0 + self.component(2,2) - self.component(0,0) -
+                          self.component(1,1)) * 2
+            q.w = (self.component(1,0) - self.component(0,1)) / S
+            q.x = (self.component(0,2) + self.component(2,0)) / S
+            q.y = (self.component(1,2) + self.component(2,1)) / S
+            q.z = 0.25 * S
+
+        return q
