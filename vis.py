@@ -10,8 +10,10 @@ import random
 import tween
 import json
 import serial
+import base64
+import struct
 
-s = serial.Serial("/dev/ttyACM0", 115200, timeout=0)
+s = serial.Serial("/dev/ttyACM0", 460800, timeout=0)
 
 win = pyglet.window.Window(vsync=True, width=1280,height=800)
 
@@ -52,226 +54,29 @@ scenerot_transform.addChild(lighthouse)
 scenerot_transform.addChild(target_device)
 scenerot_transform.addChild(slave_device)
 
-pos_delta = Vector3.zero
-
-SS_CAST_RAYS = 0
-SS_COMPUTE_POS_DELTA = 1
-SS_APPLY_POS_DELTA = 2
-SS_COMPUTE_ROT_DELTA = 3
-SS_APPLY_ROT_DELTA = 4
-
-slave_error_bound = 1.0
-slave_error = 1e20
-
-slave_state = 0
-
-slave_rays = []
-
-slave_pos_delta = Vector3.zero
-slave_rot_delta = Quaternion.l
-
-target_index = 0
-
-run_auto = False
-
-face_sums = []
-
-scan_dir = Lighthouse.PASS_VERTICAL
-
 view_rays = []
-
-angle_order = True
-
-def toggle_auto():
-    global run_auto
-    run_auto = not run_auto
-
-def toggle_scan_dir():
-    global scan_dir
-    global slave_rays
-
-    if (scan_dir == Lighthouse.PASS_VERTICAL):
-        scan_dir = Lighthouse.PASS_HORIZONTAL
-    else:
-        scan_dir = Lighthouse.PASS_VERTICAL
-
-    scene_vectormanager.clear(1)
-
-    slave_rays = lighthouse.getRays(target_device)
-    for ray in slave_rays:
-        scene_vectormanager.addRay(ray, color = (1, 1, 0, 1), group = 1)
-
-def toggle_angle_order():
-    global angle_order
-
-    angle_order = not angle_order
+transform = vector.Matrix4x4.identity
 
 def update_slave_sensor():
-    global slave_state
-    global slave_rays
-    global slave_pos_delta
-    global slave_rot_delta
-    global target_index
-    global slave_error
-    global face_sums
+    global transform
 
-    _slave_rays = lighthouse.getRays(slave_device)
-    scene_vectormanager.clear(4)
-    for ray in _slave_rays:
-        scene_vectormanager.addRay(ray, color = (1, 0.5, 0.5, 1), group = 4)
+    slave_device.pos = Vector3(*(transform.col(3)[:-1]))
 
-    if slave_state == SS_CAST_RAYS:
-
-        slave_rays = lighthouse.getRays(target_device)
-        for ray in slave_rays:
-            scene_vectormanager.addRay(ray, color = (1, 1, 0, 1), group = 1)
-        slave_state = SS_COMPUTE_POS_DELTA
-
-    elif slave_state == SS_COMPUTE_POS_DELTA:
-
-        slave_rays = view_rays
-
-        translation_rays = []
-        face_sums = []
-
-        slave_sensorpos = slave_device.getWorldSensorPos()
-        target_sensorpos = []
-
-        for ray,sp,rsp in zip(slave_rays, slave_sensorpos, [sp.rotate(slave_device.rot) for sp in slave_device.sensorpos]):
-            np = ray.nearest(sp)
-            if np:
-                target_sensorpos.append(np)
-                translation_ray = Ray(sp, np - sp)
-                translation_rays.append(translation_ray)
-                scene_vectormanager.addRay(translation_ray, color = (1, 0, 0, 1), group = 2)
-                face_sums.append(math.copysign(1.0, (np - sp).dot(rsp)))
-
-        slave_aabb = Vector3.enclosingAABB(slave_sensorpos)
-        target_aabb = Vector3.enclosingAABB(target_sensorpos)
-
-        target_pos = Vector3.average(target_sensorpos)
-        lighthouse_vector = target_pos - lighthouse.pos
-
-        target_aabb_size = (target_aabb[0] - target_aabb[1]).magnitude()
-        if (target_aabb_size > 0):
-            lighthouse_vector = lighthouse_vector * ((slave_aabb[0] - slave_aabb[1]).magnitude() / target_aabb_size - 1.0)
-        else:
-            lighthouse_vector = Vector3.zero
-
-        average_vec = Vector3.average([tr.vec for tr in translation_rays])
-
-        #if(face_sum < 0):
-        #    average_vec *= abs(face_sum)
-
-        scene_vectormanager.addVector(slave_device.pos, average_vec, color = (1, 1, 1, 1), group = 2)
-        scene_vectormanager.addVector(slave_device.pos + average_vec, lighthouse_vector, color = (1, 1, 1, 1), group = 2)
-
-        slave_pos_delta = average_vec + lighthouse_vector
-        slave_state = SS_APPLY_POS_DELTA
-
-    elif slave_state == SS_APPLY_POS_DELTA:
-
-        scene_vectormanager.clear(2)
-        slave_device.pos += slave_pos_delta
-        slave_state = SS_COMPUTE_ROT_DELTA
-
-    elif slave_state == SS_COMPUTE_ROT_DELTA:
-
-        rotation_rays = []
-        rotation_quats = []
-
-        options = zip(slave_rays, slave_device.getWorldSensorPos(), [sp.rotate(slave_device.rot) for sp in slave_device.sensorpos])
-        for ray,sp,rsp in options:
-        #ray,sp,rsp = options[target_index % len(options)]
-        #target_index += 1
-            np = ray.nearest(sp)
-            if np:
-                rotation_ray = Ray(sp, np - sp)
-                rnp = np - slave_device.pos
-                rotation_rays.append(rotation_ray)
-                scene_vectormanager.addRay(rotation_ray, color = (0, 1, 0, 1), group = 3)
-
-                rotation_quats.append(Quaternion.rotationBetween(rsp, rnp))
-
-        average_rot = Quaternion.average(rotation_quats)
-        average_rotation = average_rot #Quaternion.l.slerp(average_rot, 0.95)
-
-        scene_vectormanager.addVector(slave_device.pos, average_rotation.toAxisAngle()[0], color = (1, 1, 1, 1), group = 3)
-
-        slave_rot_delta = average_rotation
-        slave_state = SS_APPLY_ROT_DELTA
-
-    elif slave_state == SS_APPLY_ROT_DELTA:
-
-        scene_vectormanager.clear(3)
-        slave_device.rot = slave_rot_delta * slave_device.rot
-        slave_state = SS_COMPUTE_POS_DELTA
-
-def move_target_sensor():
-    global pos_delta
-    global slave_state
-    scene_vectormanager.clear(0)
-    target_device.pos += pos_delta
-    pos_delta = Vector3.random().unit() * 2
-    scene_vectormanager.addVector(target_device.pos, pos_delta, (1, 1, 0, 1), group = 0)
-    slave_state = SS_CAST_RAYS
-
-def rotate_target_sensor():
-    global slave_state
-    target_device.rot = Quaternion.fromAxisAngle(Vector3.random(), pi * 2 * (random.random() / 10) - pi) * target_device.rot
-    scene_vectormanager.clear(0)
-    slave_state = SS_CAST_RAYS
-
-def sync_states():
-    global slave_state
-    slave_device.pos = target_device.pos
-    slave_device.rot = target_device.rot
+    slave_device.rot = transform.rotation()
 
 ## This function updates the simulation state
 def step_simulation():
     global pos_delta
     scene_vectormanager.clear()
-    #cube.pos += pos_delta
-    #pos_delta = Vector3.random().unit() * 5
-    #scene_vectormanager.addVector(cube.pos, pos_delta, (1, 1, 0, 1))
-
-GRID_SIZE = 2
-
-print_timer = tween.PeriodicTimer(10)
 
 def loop_simulation(dt):
     global slave_error
-
-    if(run_auto):
-        scene_vectormanager.clear()
-        update_slave_sensor()
 
     scene_vectormanager.clear(15)
     for r in view_rays:
         scene_vectormanager.addRay(r, color=(0,0,1,1), group=15)
 
-    if print_timer.tick():
-        scene_vectormanager.clear(10)
-        target_rays = lighthouse.getRays(target_device)
-        delta_vecs = []
-        for ray,sp in zip(target_rays, [slave_device.pos + rsp.rotate(slave_device.rot) for rsp in slave_device.sensorpos]):
-            np = ray.nearest(sp)
-            if np:
-                delta_vecs.append(np - sp)
-                scene_vectormanager.addRay(Ray(sp, np - sp), color=(1,1,1,1), group=10)
-
-        slave_error = sum([vec.magnitude() for vec in delta_vecs])
-        print "E:", slave_error, "FS:", face_sums
-    #scene_vectormanager.clear()
-    #r = range(1-GRID_SIZE, GRID_SIZE)
-    #for i in r:
-    #    for j in r:
-    #        for k in r:
-    #            pos = Vector3(i,j,k)
-    #            direc = (pos.unit() * 0.5 * sin(t * 2 + pos.magnitude())) if (pos.magnitude() != 0) else Vector3.zero
-    #            direc = direc.rotate(Quaternion.fromAxisAngle(Vector3.j, pi/4))
-    #            scene_vectormanager.addVector(pos, direc, (1,1,0,1)) #((i + GRID_SIZE - 1)/float(GRID_SIZE * 2),(j + GRID_SIZE - 1)/float(GRID_SIZE * 2),(k + GRID_SIZE - 1)/float(GRID_SIZE * 2),1))
-    #            scene_vectormanager.addPlane(Plane(pos, direc))
+    update_slave_sensor()
 
 @win.event
 def on_show():
@@ -283,19 +88,21 @@ def on_show():
     glLoadIdentity()
     gluPerspective(45.0, float(win.width)/win.height, 0.1, 360)
 
-def calc_view_rays(line):
+def extract_data(line):
     try:
-        raw = json.loads(line.strip())
+        if '^' not in line or '$' not in line:
+            return [],vector.Matrix4x4.zero
+        line = line[line.find('^')+1:line.find('$')]
+        raw = struct.unpack('f'*(16 + 12), base64.b64decode(line))
     except Exception as e:
         print line
-        return []
+        return [],vector.Matrix4x4.zero
 
-    angles = [(float(x) - 13021)/13021.0 * math.pi / 3 for x in raw]
+    ret_rays = [Ray(Vector3.zero,
+                Vector3(*raw[16 + i * 3:16 + (i + 1) * 3]) * 10) for i in
+                range(4)]
 
-    if angle_order:
-        return [vector.Ray.fromPitchYaw(p,y) for p,y in zip(angles[4:],angles[:4])]
-    else:
-        return [vector.Ray.fromPitchYaw(p,y) for p,y in zip(angles[:4],angles[4:])]
+    return ret_rays,vector.Matrix4x4(*raw[:16])
 
 readbuf = ""
 
@@ -303,6 +110,7 @@ readbuf = ""
 def on_draw():
     global view_rays
     global readbuf
+    global transform
 
     readval = s.read(100)
     line = ""
@@ -319,7 +127,7 @@ def on_draw():
 
         readval = s.read(100)
     if(line):
-        view_rays = calc_view_rays(line)
+        view_rays,transform = extract_data(line)
 
     win.clear()
 
@@ -350,31 +158,12 @@ def on_mouse_scroll(x, y, scroll_x, scroll_y):
 
 @win.event
 def on_key_press(symbol, modifiers):
-    if(symbol == key.M):
-        move_target_sensor()
-    if(symbol == key.R):
-        rotate_target_sensor()
-    if(symbol == key.N):
-        update_slave_sensor()
-    if(symbol == key.C):
-        sync_states()
-
-    if(symbol == key.A):
-        toggle_auto()
-
-    if(symbol == key.S):
-        toggle_scan_dir()
-
-    if(symbol == key.K):
-        toggle_angle_order()
+    pass
 
 def process_loop(dt):
     global t
     t += dt
-
-    for _ in range(10):
-        loop_simulation(dt)
-    pass
+    loop_simulation(dt)
 
 pyglet.clock.schedule(process_loop)
 pyglet.app.run()
