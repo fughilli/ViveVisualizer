@@ -319,19 +319,30 @@ def on_draw():
     camera_offset_transform.draw()
     axes_offset_transform.draw()
 
+mouse_move_target = False
+
 @win.event
 def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
     if (buttons & pyglet.window.mouse.LEFT and not
         buttons & pyglet.window.mouse.RIGHT):
-        scenerot_transform.rot = (
-                Quaternion.fromAxisAngle(Vector3.j,
-                                         float(dx) / win.width * 2 * pi) *
-                Quaternion.fromAxisAngle(Vector3.i,
-                                         -float(dy) / win.height * 2 * pi) *
-                scenerot_transform.rot).unit()
+        delta_rot = (Quaternion.fromAxisAngle(Vector3.j,
+                                              float(dx) / win.width * 2 * pi) *
+                     Quaternion.fromAxisAngle(Vector3.i,
+                                              -float(dy) / win.height * 2 * pi))
+        if mouse_move_target:
+            target_device.rot = (scenerot_transform.rot.conjugate() *
+                                delta_rot * (scenerot_transform.rot *
+                                             target_device.rot)).unit()
+        else:
+            scenerot_transform.rot = (delta_rot * scenerot_transform.rot).unit()
     elif (buttons & pyglet.window.mouse.RIGHT and not
           buttons & pyglet.window.mouse.LEFT):
-        camera_offset_transform.pos += Vector3(dx,dy,0) * 0.05
+        delta_pos = Vector3(dx,dy,0) * 0.05
+        if mouse_move_target:
+            target_device.pos += delta_pos.rotate(
+                scenerot_transform.rot.conjugate())
+        else:
+            camera_offset_transform.pos += delta_pos
 
 @win.event
 def on_mouse_scroll(x, y, scroll_x, scroll_y):
@@ -339,6 +350,8 @@ def on_mouse_scroll(x, y, scroll_x, scroll_y):
 
 @win.event
 def on_key_press(symbol, modifiers):
+    global mouse_move_target
+
     if(symbol == key.M):
         move_target_sensor()
     if(symbol == key.R):
@@ -360,6 +373,16 @@ def on_key_press(symbol, modifiers):
 
     if(symbol == key.K):
         toggle_angle_order()
+
+    if(symbol == key.D):
+        mouse_move_target = True
+
+@win.event
+def on_key_release(symbol, modifiers):
+    global mouse_move_target
+
+    if(symbol == key.D):
+        mouse_move_target = False
 
 def process_loop(dt):
     global t
