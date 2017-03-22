@@ -8,7 +8,7 @@ DUTY_CYCLE = 83e-6/(1/120.0) # Proportion of time spent high
 
 SIGNAL_PERIOD = 1 / PULSE_FREQUENCY
 
-DURATION = 0.5 # Seconds
+DURATION = 2.0 # Seconds
 SUBDIVISION = 100000.0 # Number of samples in a second
 
 ## Define some basic DSP functions
@@ -111,7 +111,7 @@ for t,s in zip(xs, signal_trace):
         timer.offsetPhase(offset)
         error_accums = [0] * (len(zones) + 1)
 
-for trace in [signal_trace]: # + accum_traces:
+for trace in [signal_trace] + accum_traces:
     trace_max = max(trace)
 
     if trace_max == 0:
@@ -120,6 +120,8 @@ for trace in [signal_trace]: # + accum_traces:
 
     if trace == signal_trace:
         sync_pulse, = plt.plot(xs, norm_trace)
+    else:
+        plt.plot(xs, norm_trace)
 
 fpga_clk, = plt.plot(xs, timer_trace)
 
