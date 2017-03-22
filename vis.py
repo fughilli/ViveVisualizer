@@ -159,6 +159,9 @@ def on_mouse_scroll(x, y, scroll_x, scroll_y):
 
 @win.event
 def on_key_press(symbol, modifiers):
+    if (symbol == key.S):
+        s.write('f')
+        s.flush()
     pass
 
 def process_loop(dt):
